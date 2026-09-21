@@ -17,6 +17,7 @@ import {
 } from './github'
 import PostList from './PostList.vue'
 import PostEditor from './PostEditor.vue'
+import ConfigEditor from './ConfigEditor.vue'
 
 const STORAGE_KEY = 'reimu-admin-config'
 
@@ -35,6 +36,7 @@ const probeSteps = ref<ProbeStep[]>([])
 
 const posts = ref<PostFile[]>([])
 const mode = ref<'list' | 'edit'>('list')
+const view = ref<'posts' | 'config'>('posts')
 const doc = ref<PostDoc | null>(null)
 const isNew = ref(false)
 const saving = ref(false)
@@ -168,6 +170,16 @@ async function submit(payload: SavePayload) {
   }
 }
 
+function showPosts() {
+  view.value = 'posts'
+}
+
+function showConfig() {
+  view.value = 'config'
+  error.value = ''
+  notice.value = ''
+}
+
 function cancelEdit() {
   mode.value = 'list'
   doc.value = null
@@ -178,22 +190,30 @@ function cancelEdit() {
 <template>
   <div class="admin">
     <header class="bar">
-      <strong>文章管理</strong>
+      <strong>博客管理</strong>
+      <nav v-if="ready" class="tabs">
+        <button type="button" :class="{ on: view === 'posts' }" @click="showPosts">文章</button>
+        <button type="button" :class="{ on: view === 'config' }" @click="showConfig">
+          站点配置
+        </button>
+      </nav>
       <span v-if="ready" class="repo">{{ config.owner }}/{{ config.repo }} · {{ config.branch }}</span>
       <button v-if="ready" type="button" class="ghost" @click="disconnect">断开</button>
     </header>
 
-    <p v-if="error" class="alert err">{{ error }}</p>
-    <p v-else-if="notice" class="alert ok">{{ notice }}</p>
+    <template v-if="view === 'posts' || !ready">
+      <p v-if="error" class="alert err">{{ error }}</p>
+      <p v-else-if="notice" class="alert ok">{{ notice }}</p>
 
-    <ul v-if="probeSteps.length || diagnosing" class="probe">
-      <li v-if="diagnosing" class="pending">正在逐层检查…</li>
-      <li v-for="step in probeSteps" :key="step.label" :class="{ bad: !step.ok }">
-        <span class="mark">{{ step.ok ? '✓' : '✗' }}</span>
-        <span class="lbl">{{ step.label }}</span>
-        <span class="det">{{ step.detail }}</span>
-      </li>
-    </ul>
+      <ul v-if="probeSteps.length || diagnosing" class="probe">
+        <li v-if="diagnosing" class="pending">正在逐层检查…</li>
+        <li v-for="step in probeSteps" :key="step.label" :class="{ bad: !step.ok }">
+          <span class="mark">{{ step.ok ? '✓' : '✗' }}</span>
+          <span class="lbl">{{ step.label }}</span>
+          <span class="det">{{ step.detail }}</span>
+        </li>
+      </ul>
+    </template>
 
     <section v-if="!ready" class="setup">
       <h2>连接 GitHub 仓库</h2>
@@ -214,8 +234,9 @@ function cancelEdit() {
     </section>
 
     <template v-else>
+      <ConfigEditor v-if="view === 'config'" :repo="config" />
       <PostEditor
-        v-if="mode === 'edit' && doc"
+        v-else-if="mode === 'edit' && doc"
         :doc="doc"
         :is-new="isNew"
         :saving="saving"
@@ -333,6 +354,24 @@ button.primary {
 }
 button.ghost {
   background: transparent;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+.tabs button {
+  padding: 5px 12px;
+  font-size: 0.84rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.tabs button.on {
+  background: var(--field);
+  border-color: var(--line);
+  color: inherit;
+  font-weight: 600;
 }
 .probe {
   list-style: none;

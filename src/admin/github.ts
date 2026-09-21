@@ -207,12 +207,50 @@ type ContentsFile = {
   encoding: string
 }
 
-export async function readPost(cfg: RepoConfig, path: string): Promise<PostDoc> {
+/** 读取仓库里任意文本文件的原始内容。 */
+export async function readFileText(
+  cfg: RepoConfig,
+  path: string,
+): Promise<{ text: string; sha: string }> {
   const file = await request<ContentsFile>(
     cfg,
     `/repos/${cfg.owner}/${cfg.repo}/contents/${path}?ref=${encodeURIComponent(cfg.branch)}`,
   )
-  const raw = fromBase64(file.content)
+  return { text: fromBase64(file.content), sha: file.sha }
+}
+
+/** 写入仓库里任意文本文件。 */
+export async function commitFileText(
+  cfg: RepoConfig,
+  input: { path: string; sha: string; text: string; message: string },
+): Promise<CommitResult> {
+  const body: Record<string, unknown> = {
+    message: input.message,
+    content: toBase64(input.text),
+    branch: cfg.branch,
+  }
+  // Without the previous sha the API creates a new file and rejects the call
+  // when one already exists at that path.
+  if (input.sha) body.sha = input.sha
+
+  const result = await request<{
+    content: { path: string; html_url: string } | null
+    commit: { html_url: string }
+  }>(cfg, `/repos/${cfg.owner}/${cfg.repo}/contents/${input.path}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+
+  return {
+    path: input.path,
+    htmlUrl: result.content?.html_url ?? '',
+    commitUrl: result.commit?.html_url ?? '',
+  }
+}
+
+export async function readPost(cfg: RepoConfig, path: string): Promise<PostDoc> {
+  const file = await readFileText(cfg, path)
+  const raw = file.text
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
 
   // A post without frontmatter would fail the collection schema, but do not
@@ -257,28 +295,12 @@ export async function savePost(
   doc: PostDoc,
   message: string,
 ): Promise<CommitResult> {
-  const body: Record<string, unknown> = {
-    message,
-    content: toBase64(serializePost(doc)),
-    branch: cfg.branch,
-  }
-  // Without the previous sha the API creates a new file and rejects the call
-  // when one already exists at that path.
-  if (doc.sha) body.sha = doc.sha
-
-  const result = await request<{
-    content: { path: string; html_url: string } | null
-    commit: { html_url: string }
-  }>(cfg, `/repos/${cfg.owner}/${cfg.repo}/contents/${doc.path}`, {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  })
-
-  return {
+  return commitFileText(cfg, {
     path: doc.path,
-    htmlUrl: result.content?.html_url ?? '',
-    commitUrl: result.commit?.html_url ?? '',
-  }
+    sha: doc.sha,
+    text: serializePost(doc),
+    message,
+  })
 }
 
 export function slugify(input: string): string {
