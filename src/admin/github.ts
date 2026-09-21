@@ -52,6 +52,17 @@ function fromBase64(encoded: string): string {
   return new TextDecoder().decode(bytes)
 }
 
+/** A GitHub API failure that keeps the HTTP status available for diagnosis. */
+export class GitHubError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'GitHubError'
+    this.status = status
+  }
+}
+
 async function request<T>(
   cfg: RepoConfig,
   path: string,
@@ -68,19 +79,102 @@ async function request<T>(
   })
 
   if (!response.ok) {
-    const detail = await response.text()
     let message = `${response.status} ${response.statusText}`
     try {
-      const parsed = JSON.parse(detail) as { message?: string }
+      const parsed = JSON.parse(await response.text()) as { message?: string }
       if (parsed.message) message = `${message} — ${parsed.message}`
     } catch {
       // Non-JSON error body; the status line is all we have.
     }
-    throw new Error(message)
+    throw new GitHubError(response.status, message)
   }
 
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/** Turn a GitHub failure into something that names the actual next step. */
+export function explainError(error: unknown, cfg: RepoConfig): string {
+  if (!(error instanceof GitHubError)) {
+    return `请求没发出去：${(error as Error).message}。检查网络，或浏览器是否拦住了 api.github.com。`
+  }
+
+  switch (error.status) {
+    case 401:
+      return 'Token 无效或已过期。去 https://github.com/settings/personal-access-tokens 重新生成一个。'
+    case 403:
+      return 'Token 权限不足，或触发了 GitHub 限流。确认这个 token 的 Contents 权限是 Read and write，并且已授权该仓库。'
+    case 404:
+      return `GitHub 上找不到 ${cfg.owner}/${cfg.repo} 的这个路径。最常见的原因：仓库还没有任何提交。先在终端跑 git push -u origin main。`
+    case 409:
+      return '仓库是空的。先把代码 push 上去。'
+    case 422:
+      return '提交被拒绝，通常是同一个文件同时被改动。刷新后重试。'
+    default:
+      return `GitHub 返回 ${error.status}：${error.message}`
+  }
+}
+
+export type ProbeStep = {
+  label: string
+  ok: boolean
+  detail: string
+}
+
+/**
+ * Check the connection one level at a time, so a failure points at the exact
+ * layer that broke instead of a single opaque 404.
+ */
+export async function probe(cfg: RepoConfig): Promise<ProbeStep[]> {
+  const steps: ProbeStep[] = []
+
+  let repo: {
+    full_name: string
+    private: boolean
+    default_branch: string
+    permissions?: { push?: boolean }
+  }
+
+  try {
+    repo = await request(cfg, `/repos/${cfg.owner}/${cfg.repo}`)
+  } catch (error) {
+    return [{ label: `仓库 ${cfg.owner}/${cfg.repo}`, ok: false, detail: explainError(error, cfg) }]
+  }
+
+  steps.push({
+    label: `仓库 ${repo.full_name}`,
+    ok: true,
+    detail: `${repo.private ? '私有' : '公开'} · 默认分支 ${repo.default_branch}`,
+  })
+
+  const canPush = repo.permissions?.push === true
+  steps.push({
+    label: 'Token 写权限',
+    ok: canPush,
+    detail: canPush
+      ? '可以提交文件'
+      : '没有写权限。确认 token 的 Contents 权限是 Read and write，并且授权了这个仓库',
+  })
+
+  try {
+    await request(cfg, `/repos/${cfg.owner}/${cfg.repo}/branches/${encodeURIComponent(cfg.branch)}`)
+    steps.push({ label: `分支 ${cfg.branch}`, ok: true, detail: '存在' })
+  } catch (error) {
+    steps.push({ label: `分支 ${cfg.branch}`, ok: false, detail: explainError(error, cfg) })
+  }
+
+  try {
+    const entries = await request<unknown[]>(
+      cfg,
+      `/repos/${cfg.owner}/${cfg.repo}/contents/${CONTENT_DIR}?ref=${encodeURIComponent(cfg.branch)}`,
+    )
+    const count = Array.isArray(entries) ? entries.length : 0
+    steps.push({ label: `目录 ${CONTENT_DIR}`, ok: true, detail: `${count} 个条目` })
+  } catch (error) {
+    steps.push({ label: `目录 ${CONTENT_DIR}`, ok: false, detail: explainError(error, cfg) })
+  }
+
+  return steps
 }
 
 type ContentsEntry = {

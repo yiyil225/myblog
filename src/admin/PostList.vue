@@ -4,6 +4,7 @@ import type { PostFile } from './github'
 defineProps<{
   posts: PostFile[]
   loading: boolean
+  errored: boolean
 }>()
 
 defineEmits<{
@@ -15,7 +16,7 @@ defineEmits<{
 
 <template>
   <div class="toolbar">
-    <button type="button" class="primary" @click="$emit('create')">新建文章</button>
+    <button type="button" class="primary" :disabled="errored" @click="$emit('create')">新建文章</button>
     <button type="button" @click="$emit('refresh')" :disabled="loading">
       {{ loading ? '刷新中…' : '刷新' }}
     </button>
@@ -23,6 +24,7 @@ defineEmits<{
   </div>
 
   <p v-if="loading && !posts.length" class="empty">读取中…</p>
+  <p v-else-if="errored" class="empty bad">读取失败，见上方的诊断结果。修好后点「刷新」。</p>
   <p v-else-if="!posts.length" class="empty">还没有文章。点「新建文章」开始。</p>
 
   <ul v-else class="list">
@@ -50,6 +52,9 @@ defineEmits<{
 .empty {
   color: var(--muted);
   font-size: 0.9rem;
+}
+.empty.bad {
+  color: var(--err-fg);
 }
 .list {
   list-style: none;

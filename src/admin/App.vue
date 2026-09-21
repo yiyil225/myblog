@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { DEFAULT_REPO } from './config'
 import {
+  explainError,
   listPosts,
   postPath,
+  probe,
   readPost,
   savePost,
   today,
   type PostDoc,
   type PostFile,
+  type ProbeStep,
   type RepoConfig,
   type SavePayload,
 } from './github'
@@ -16,11 +20,18 @@ import PostEditor from './PostEditor.vue'
 
 const STORAGE_KEY = 'reimu-admin-config'
 
-const config = reactive<RepoConfig>({ owner: '', repo: '', branch: 'main', token: '' })
+const config = reactive<RepoConfig>({
+  owner: DEFAULT_REPO.owner,
+  repo: DEFAULT_REPO.repo,
+  branch: DEFAULT_REPO.branch,
+  token: '',
+})
 const connected = ref(false)
 const loading = ref(false)
+const diagnosing = ref(false)
 const error = ref('')
 const notice = ref('')
+const probeSteps = ref<ProbeStep[]>([])
 
 const posts = ref<PostFile[]>([])
 const mode = ref<'list' | 'edit'>('list')
@@ -37,13 +48,18 @@ onMounted(() => {
   if (!raw) return
   try {
     const saved = JSON.parse(raw) as Partial<RepoConfig>
-    Object.assign(config, saved)
-    // Only treat the saved values as connected once we have actually fetched.
-    connected.value = Boolean(config.owner && config.repo && config.token)
+    for (const [key, value] of Object.entries(saved)) {
+      // Ignore blanks so a cleared field falls back to the default instead of
+      // wiping it out and breaking every request.
+      if (typeof value === 'string' && value.trim()) config[key as keyof RepoConfig] = value
+    }
   } catch {
     localStorage.removeItem(STORAGE_KEY)
   }
-  if (connected.value) void refresh()
+  if (config.owner && config.repo && config.token) {
+    connected.value = true
+    void refresh()
+  }
 })
 
 function persist() {
@@ -53,8 +69,9 @@ function persist() {
 async function connect() {
   error.value = ''
   notice.value = ''
+  if (!config.branch) config.branch = DEFAULT_REPO.branch
   if (!config.owner || !config.repo || !config.token) {
-    error.value = '仓库、分支和 Token 都要填。'
+    error.value = '仓库所有者、仓库名和 Token 都要填。'
     return
   }
   persist()
@@ -66,6 +83,7 @@ function disconnect() {
   localStorage.removeItem(STORAGE_KEY)
   connected.value = false
   posts.value = []
+  probeSteps.value = []
   mode.value = 'list'
   doc.value = null
   notice.value = ''
@@ -77,10 +95,23 @@ async function refresh() {
   error.value = ''
   try {
     posts.value = await listPosts(config)
+    probeSteps.value = []
   } catch (cause) {
-    error.value = `读取文章列表失败：${(cause as Error).message}`
+    error.value = explainError(cause, config)
+    // The list call is the first thing that touches every layer, so run the
+    // layered probe now instead of making the user guess which part broke.
+    await diagnose()
   } finally {
     loading.value = false
+  }
+}
+
+async function diagnose() {
+  diagnosing.value = true
+  try {
+    probeSteps.value = await probe(config)
+  } finally {
+    diagnosing.value = false
   }
 }
 
@@ -106,7 +137,7 @@ async function openPost(file: PostFile) {
     isNew.value = false
     mode.value = 'edit'
   } catch (cause) {
-    error.value = `打开 ${file.name} 失败：${(cause as Error).message}`
+    error.value = `打开 ${file.name} 失败：${explainError(cause, config)}`
   } finally {
     loading.value = false
   }
@@ -131,7 +162,7 @@ async function submit(payload: SavePayload) {
     doc.value = null
     await refresh()
   } catch (cause) {
-    error.value = `提交失败：${(cause as Error).message}`
+    error.value = `提交失败：${explainError(cause, config)}`
   } finally {
     saving.value = false
   }
@@ -154,6 +185,15 @@ function cancelEdit() {
 
     <p v-if="error" class="alert err">{{ error }}</p>
     <p v-else-if="notice" class="alert ok">{{ notice }}</p>
+
+    <ul v-if="probeSteps.length || diagnosing" class="probe">
+      <li v-if="diagnosing" class="pending">正在逐层检查…</li>
+      <li v-for="step in probeSteps" :key="step.label" :class="{ bad: !step.ok }">
+        <span class="mark">{{ step.ok ? '✓' : '✗' }}</span>
+        <span class="lbl">{{ step.label }}</span>
+        <span class="det">{{ step.detail }}</span>
+      </li>
+    </ul>
 
     <section v-if="!ready" class="setup">
       <h2>连接 GitHub 仓库</h2>
@@ -186,6 +226,7 @@ function cancelEdit() {
         v-else
         :posts="posts"
         :loading="loading"
+        :errored="Boolean(error)"
         @create="createPost"
         @open="openPost"
         @refresh="refresh"
@@ -292,5 +333,50 @@ button.primary {
 }
 button.ghost {
   background: transparent;
+}
+.probe {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.probe li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.probe .mark {
+  color: var(--ok-fg);
+  font-weight: 700;
+  width: 1em;
+  flex: none;
+}
+.probe li.bad .mark {
+  color: var(--err-fg);
+}
+.probe .lbl {
+  font-weight: 600;
+  flex: none;
+}
+.probe .det {
+  color: var(--muted);
+}
+.probe li.pending {
+  color: var(--muted);
+}
+
+@media (max-width: 620px) {
+  .probe li {
+    flex-wrap: wrap;
+  }
+  .probe .det {
+    flex-basis: 100%;
+    padding-left: 1.6em;
+  }
 }
 </style>

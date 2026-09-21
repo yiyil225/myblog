@@ -351,4 +351,10 @@ code {
   padding: 1px 5px;
   border-radius: 4px;
 }
+
+@media (max-width: 620px) {
+  .row {
+    flex-direction: column;
+  }
+}
 </style>
