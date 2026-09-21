@@ -1,7 +1,7 @@
 export default {
   site: {
     title: "从零开始的编程",
-    subtitle: "My Blog Subtitle",
+    subtitle: "十分甚至有九分的好啊！",
     description: "my blog that record my programing progress",
     keywords: "blog, programming, astro",
     author: "依依绫",
@@ -9,7 +9,7 @@ export default {
   },
 
   sidebar: {
-    avatar: "/images/avatar.webp",
+    avatar: "/images/headimage.webp",
     position: "right", // left or right
   },
 
