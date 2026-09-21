@@ -1,10 +1,10 @@
 export default {
   site: {
-    title: "My Blog",
+    title: "从零开始的编程",
     subtitle: "My Blog Subtitle",
     description: "D-Sketon's blog",
     keywords: "D-Sketon, blog, astro, theme",
-    author: "D-Sketon",
+    author: "依依绫",
     language: "zh-CN",
   },
 
@@ -57,11 +57,11 @@ export default {
   },
 
   social: {
-    // email: mailto:xxx@gmail.com
-    github: "https://github.com/yourname",
-    google: "https://plus.google.com/yourname",
-    twitter: "https://twitter.com/yourname",
-    facebook: "https://www.facebook.com/yourname",
+    //email: 3155906310@qq.com
+    //github: "https://github.com/yourname",
+    //google: "https://plus.google.com/yourname",
+    //twitter: "https://twitter.com/yourname",
+    //facebook: "https://www.facebook.com/yourname",
     // instagram: https://www.instagram.com/yourname
     // linkedin: https://www.linkedin.com/in/yourname
     // pinterest: https://www.pinterest.com/yourname
@@ -101,7 +101,7 @@ export default {
 
   // https://waline.js.org/
   waline: {
-    enable: false,
+    enable: true,
     serverURL: "",
     lang: "zh-CN",
     locale: {}, // https://waline.js.org/guide/features/i18n.html#%E8%87%AA%E5%AE%9A%E4%B9%89%E8%AF%AD%E8%A8%80
