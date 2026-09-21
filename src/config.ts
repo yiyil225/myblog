@@ -2,8 +2,8 @@ export default {
   site: {
     title: "从零开始的编程",
     subtitle: "My Blog Subtitle",
-    description: "D-Sketon's blog",
-    keywords: "D-Sketon, blog, astro, theme",
+    description: "my blog that record my programing progress",
+    keywords: "blog, programming, astro",
     author: "依依绫",
     language: "zh-CN",
   },
