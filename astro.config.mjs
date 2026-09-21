@@ -6,6 +6,7 @@ import { pluginCollapsibleSections } from '@expressive-code/plugin-collapsible-s
 import { pluginLineNumbers } from '@expressive-code/plugin-line-numbers';
 import icon from "astro-icon";
 import react from "@astrojs/react";
+import vue from '@astrojs/vue';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import Font from 'vite-plugin-font';
@@ -37,7 +38,10 @@ export default defineConfig({
       ]
     },
     plugins: [pluginCollapsibleSections(), pluginLineNumbers()]
-  }), mdx(), sitemap(), icon(), react()],
+  }), mdx(), sitemap({
+    // 后台页面不进 sitemap
+    filter: (page) => !page.includes('/admin')
+  }), icon(), react(), vue()],
   vite: {
     plugins: [
      Font.vite({

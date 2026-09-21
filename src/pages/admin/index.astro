@@ -1,0 +1,63 @@
+---
+// 文章管理后台。
+// Vue 应用用 client:only 挂载：它依赖 localStorage，跳过 SSR。
+import App from '../../admin/App.vue';
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>文章管理</title>
+    <style is:global>
+      :root {
+        --bg: #fbfbfd;
+        --fg: #1c1c22;
+        --muted: #6b6b78;
+        --line: #e2e2ea;
+        --field: #ffffff;
+        --accent: #6c5ce7;
+        --accent-fg: #ffffff;
+        --err-bg: #fdecec;
+        --err-fg: #a5242b;
+        --ok-bg: #e8f7ee;
+        --ok-fg: #1c6b3c;
+        --warn-bg: #fff4e0;
+        --warn-fg: #8a5a12;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14141a;
+          --fg: #e8e8ef;
+          --muted: #9a9aa8;
+          --line: #2b2b36;
+          --field: #1c1c24;
+          --accent: #8b7cf6;
+          --accent-fg: #14141a;
+          --err-bg: #3a1d1f;
+          --err-fg: #ff9ea3;
+          --ok-bg: #16301f;
+          --ok-fg: #7ddba3;
+          --warn-bg: #33270f;
+          --warn-fg: #f0c477;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <App client:only="vue" />
+  </body>
+</html>

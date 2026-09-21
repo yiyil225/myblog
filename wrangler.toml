@@ -1,0 +1,9 @@
+# Cloudflare Pages 项目配置。
+#
+# 站点是纯静态 Astro 输出，不需要 @astrojs/cloudflare 适配器：
+# 构建产物就是一个完整的静态目录，Pages 直接托管。
+#
+# name 决定 <name>.pages.dev 子域名，可以随意改。
+name = "astro-theme-reimu"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-09-01"
